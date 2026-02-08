@@ -5,21 +5,18 @@
  * Generate and evaluate solutions
  */
 
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Lightbulb, Sparkles, TrendingUp, CheckCircle2, Loader2, Star } from 'lucide-react';
-import { ideateSchema, IdeateInput } from '@/lib/validations/project.schema';
+import { Lightbulb, Sparkles, TrendingUp, CheckCircle2, Loader2, Star, ArrowRight } from 'lucide-react';
 import { useGenerateSolutions } from '@/hooks/use-ai-generation';
 import { useState } from 'react';
 import { SolutionData } from '@/types';
 
 interface StepIdeateProps {
-  initialData?: Partial<IdeateInput>;
+  initialData?: any;
   projectId?: string;
   solutions?: SolutionData[];
-  onSubmit: (data: IdeateInput) => void;
+  onSubmit: (data: any) => void;
   onBack?: () => void;
 }
 
@@ -30,16 +27,9 @@ export default function StepIdeate({
   onSubmit,
   onBack,
 }: StepIdeateProps) {
-  const {
-    handleSubmit,
-    formState: { isValid },
-  } = useForm<IdeateInput>({
-    resolver: zodResolver(ideateSchema),
-    defaultValues: initialData,
-    mode: 'onChange',
-  });
-
-  const [selectedSolution, setSelectedSolution] = useState<string | null>(null);
+  const [selectedSolution, setSelectedSolution] = useState<string | null>(
+    initialData?.selectedSolution?.id || null
+  );
   const generateSolutionsMutation = useGenerateSolutions();
 
   const handleGenerateSolutions = () => {
@@ -47,6 +37,17 @@ export default function StepIdeate({
       generateSolutionsMutation.mutate(projectId);
     }
   };
+
+  const handleSubmit = () => {
+    const selected = solutions.find((s) => s.id === selectedSolution) || null;
+    onSubmit({
+      solutions,
+      selectedSolution: selected,
+    });
+  };
+
+  const hasSolutions = solutions && solutions.length > 0;
+  const canSubmit = hasSolutions && selectedSolution;
 
   const getScoreColor = (score: number) => {
     if (score >= 8) return 'text-green-600';
@@ -69,9 +70,9 @@ export default function StepIdeate({
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <div className="space-y-6">
         {/* AI Solution Generation */}
-        <Card className={solutions && solutions.length > 0 ? "border-primary/50" : "bg-muted/50 border-dashed"}>
+        <Card className={hasSolutions ? "border-primary/50" : "bg-muted/50 border-dashed"}>
           <CardContent className="pt-6">
             <div className="text-center space-y-4">
               <div className="mx-auto w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
@@ -97,25 +98,26 @@ export default function StepIdeate({
                 ) : (
                   <>
                     <Sparkles className="ml-2 h-4 w-4" />
-                    {solutions && solutions.length > 0 ? 'إعادة التوليد' : 'توليد الحلول'}
+                    {hasSolutions ? 'إعادة التوليد' : 'توليد الحلول'}
                   </>
                 )}
               </Button>
             </div>
 
             {/* Display Generated Solutions */}
-            {solutions && solutions.length > 0 && (
+            {hasSolutions && (
               <div className="mt-6 space-y-4">
-                <h4 className="font-semibold text-center">الحلول المقترحة:</h4>
+                <h4 className="font-semibold text-center">الحلول المقترحة (اختر حلاً للمتابعة):</h4>
                 <div className="space-y-3">
                   {solutions.map((solution) => {
                     const totalScore = solution.impactScore + solution.feasibilityScore;
+                    const isSelected = selectedSolution === solution.id;
                     return (
                       <Card
                         key={solution.id}
                         className={`cursor-pointer transition-all ${
-                          selectedSolution === solution.id
-                            ? 'border-primary bg-primary/5'
+                          isSelected
+                            ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
                             : 'bg-background hover:border-primary/50'
                         }`}
                         onClick={() => setSelectedSolution(solution.id)}
@@ -181,7 +183,7 @@ export default function StepIdeate({
                             </div>
 
                             {/* Select Indicator */}
-                            {selectedSolution === solution.id && (
+                            {isSelected && (
                               <CheckCircle2 className="w-6 h-6 text-primary flex-shrink-0" />
                             )}
                           </div>
@@ -204,38 +206,40 @@ export default function StepIdeate({
             </CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-blue-800 dark:text-blue-200 space-y-2">
-            <p>✓ فكر في حلول غير تقليدية</p>
-            <p>✓ ركز على قيمة المستخدم</p>
-            <p>✓ لا تستبعد أي فكرة في البداية</p>
-            <p>✓ ضع في اعتبارك الموارد المتاحة</p>
-            <p>✓ فكر في الحلول قصيرة وطويلة المدى</p>
+            <p>• فكر في حلول غير تقليدية</p>
+            <p>• ركز على قيمة المستخدم</p>
+            <p>• لا تستبعد أي فكرة في البداية</p>
+            <p>• ضع في اعتبارك الموارد المتاحة</p>
+            <p>• فكر في الحلول قصيرة وطويلة المدى</p>
           </CardContent>
         </Card>
 
-        {/* Manual Solution Entry (Placeholder) */}
-        <Card>
-          <CardHeader>
-            <CardTitle>إضافة حل يدوياً</CardTitle>
-            <CardDescription>
-              يمكنك إضافة حلولك الخاصة هنا
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button type="button" variant="outline" className="w-full" disabled>
-              <Lightbulb className="ml-2 h-4 w-4" />
-              إضافة حل جديد (قريباً)
+        {/* Navigation */}
+        <div className="flex justify-between">
+          {onBack && (
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={() => onBack?.()}
+            >
+              <ArrowRight className="ml-2 h-5 w-5" />
+              السابق
             </Button>
-          </CardContent>
-        </Card>
-
-        {/* Submit */}
-        <div className="flex justify-end">
-          <Button type="submit" size="lg" disabled={!isValid}>
-            حفظ والمتابعة
-            <Lightbulb className="mr-2 h-5 w-5" />
-          </Button>
+          )}
+          <div className={!onBack ? 'mr-auto' : ''}>
+            <Button
+              type="button"
+              size="lg"
+              onClick={handleSubmit}
+              disabled={!canSubmit}
+            >
+              حفظ والمتابعة
+              <Lightbulb className="mr-2 h-5 w-5" />
+            </Button>
+          </div>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

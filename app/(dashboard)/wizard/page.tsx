@@ -85,27 +85,32 @@ export default function WizardPageNew() {
     }
   }, [projectId]);
 
-  // Load project data
+  // Load project data - only set wizard step on initial load
+  const initialStepSetRef = useRef(false);
   useEffect(() => {
     if (projectData) {
       setProject(projectData);
 
-      // Set wizard step based on project status
-      const statusToStep: Record<string, any> = {
-        DRAFT: 'empathize',
-        EMPATHIZE: 'empathize',
-        PERSONAS: 'personas',
-        DEFINE: 'define',
-        IDEATE: 'ideate',
-        PROTOTYPE: 'prototype',
-        VALIDATE: 'validate',
-        ARCHITECTURE: 'architecture',
-        MOCKUP: 'mockup',
-        COMPLETED: 'mockup',
-      };
+      // Only set step from DB status on first load (not on refetches after save)
+      if (!initialStepSetRef.current) {
+        initialStepSetRef.current = true;
 
-      const step = statusToStep[projectData.status] || 'empathize';
-      setCurrentStep(step);
+        const statusToStep: Record<string, any> = {
+          DRAFT: 'empathize',
+          EMPATHIZE: 'empathize',
+          PERSONAS: 'personas',
+          DEFINE: 'define',
+          IDEATE: 'ideate',
+          PROTOTYPE: 'prototype',
+          VALIDATE: 'validate',
+          ARCHITECTURE: 'architecture',
+          MOCKUP: 'mockup',
+          COMPLETED: 'mockup',
+        };
+
+        const step = statusToStep[projectData.status] || 'empathize';
+        setCurrentStep(step);
+      }
     }
   }, [projectData, setProject, setCurrentStep]);
 
