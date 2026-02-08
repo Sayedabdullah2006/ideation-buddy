@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Layout, Sparkles, Download, FileText, Code, Loader2, Monitor, ArrowRight, Palette, FileCode, FolderDown, Eye, X, ChevronLeft, ChevronRight, Maximize2, Minimize2, Play } from 'lucide-react';
 import { useGenerateMockups } from '@/hooks/use-ai-generation';
+import { AIProgress } from '@/components/ui/ai-progress';
 import { MockupData, ScreenMockup } from '@/types';
 import { generateScreenHTML, generateAllMockupHTML, generateFullMVPHTML } from '@/lib/mockup-html-generator';
 import JSZip from 'jszip';
@@ -525,6 +526,20 @@ ${mockupData.screens?.map(s => `- ${s.id}.html - ${s.name} (${s.nameEn})`).join(
                     </>
                   )}
                 </Button>
+
+                <AIProgress
+                  isActive={generateMockupsMutation.isPending}
+                  estimatedDuration={30}
+                  label="جاري توليد النماذج الأولية"
+                  steps={[
+                    'تحليل مواصفات MVP...',
+                    'تصميم الشاشات الرئيسية...',
+                    'بناء تدفق المستخدم...',
+                    'إنشاء هيكل التنقل...',
+                    'تطبيق إرشادات التصميم...',
+                    'مراجعة النماذج...',
+                  ]}
+                />
               </div>
             ) : (
               <>

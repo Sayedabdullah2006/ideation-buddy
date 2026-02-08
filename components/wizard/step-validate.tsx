@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { validateSchema, ValidateInput } from '@/lib/validations/project.schema';
 import { useGenerateMVPSpec, useValidateIdea } from '@/hooks/use-ai-generation';
+import { AIProgress } from '@/components/ui/ai-progress';
 import { MVPSpecification, IdeaValidationResult } from '@/types';
 import { cn } from '@/lib/utils/cn';
 
@@ -278,6 +279,19 @@ ${mvpSpec.estimatedCost}
                     </>
                   )}
                 </Button>
+
+                <AIProgress
+                  isActive={validateIdeaMutation.isPending}
+                  estimatedDuration={25}
+                  label="جاري تحليل الفكرة"
+                  steps={[
+                    'تحليل السوق والمنافسين...',
+                    'تقييم الجدوى التقنية...',
+                    'تحليل نموذج الأعمال...',
+                    'تقييم المخاطر والفرص...',
+                    'إعداد التقرير الشامل...',
+                  ]}
+                />
               </div>
             ) : (
               <div className="space-y-6">
@@ -673,6 +687,20 @@ ${mvpSpec.estimatedCost}
                     </>
                   )}
                 </Button>
+
+                <AIProgress
+                  isActive={generateMVPSpecMutation.isPending}
+                  estimatedDuration={30}
+                  label="جاري توليد مواصفات MVP"
+                  steps={[
+                    'تحليل نموذج الأعمال...',
+                    'تحديد المتطلبات الوظيفية...',
+                    'تصميم قصص المستخدم...',
+                    'إنشاء النماذج الأولية...',
+                    'تقدير الجدول الزمني والتكلفة...',
+                    'مراجعة المواصفات...',
+                  ]}
+                />
               </div>
             ) : (
               <>

@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Lightbulb, Sparkles, TrendingUp, CheckCircle2, Loader2, Star, ArrowRight } from 'lucide-react';
 import { useGenerateSolutions } from '@/hooks/use-ai-generation';
+import { AIProgress } from '@/components/ui/ai-progress';
 import { useState } from 'react';
 import { SolutionData } from '@/types';
 
@@ -102,6 +103,19 @@ export default function StepIdeate({
                   </>
                 )}
               </Button>
+
+              <AIProgress
+                isActive={generateSolutionsMutation.isPending}
+                estimatedDuration={20}
+                label="جاري توليد الحلول"
+                steps={[
+                  'تحليل بيان المشكلة...',
+                  'استكشاف الحلول الممكنة...',
+                  'تقييم الأثر والجدوى...',
+                  'ترتيب الحلول حسب الأولوية...',
+                  'مراجعة النتائج...',
+                ]}
+              />
             </div>
 
             {/* Display Generated Solutions */}

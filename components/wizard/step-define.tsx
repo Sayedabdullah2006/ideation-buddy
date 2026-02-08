@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Target, Users, Sparkles, AlertCircle, Loader2, CheckCircle2 } from 'lucide-react';
 import { defineSchema, DefineInput } from '@/lib/validations/project.schema';
 import { useRefineProblem, useGenerateProblemStatement } from '@/hooks/use-ai-generation';
+import { AIProgress } from '@/components/ui/ai-progress';
 import { useState } from 'react';
 
 interface StepDefineProps {
@@ -238,6 +239,19 @@ export default function StepDefine({
                     اختر شخصية واحدة على الأقل لتوليد بيان المشكلة
                   </p>
                 )}
+
+                <AIProgress
+                  isActive={generateProblemMutation.isPending}
+                  estimatedDuration={15}
+                  label="جاري توليد بيان المشكلة"
+                  steps={[
+                    'تحليل الشخصيات المختارة...',
+                    'تحديد نقاط الألم المشتركة...',
+                    'صياغة بيان المشكلة...',
+                    'إنشاء بدائل How Might We...',
+                    'مراجعة النتائج...',
+                  ]}
+                />
               </div>
 
               {/* Display Generated Statements */}
@@ -345,6 +359,18 @@ export default function StepDefine({
                   </Button>
                 </div>
               )}
+
+              <AIProgress
+                isActive={refineProblemMutation.isPending}
+                estimatedDuration={12}
+                label="جاري تحسين البيان"
+                steps={[
+                  'تحليل البيان الحالي...',
+                  'تحسين الصياغة...',
+                  'إنشاء بدائل محسنة...',
+                  'مراجعة النتائج...',
+                ]}
+              />
 
               {/* Tips */}
               <div className="flex gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg mt-3">

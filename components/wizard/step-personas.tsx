@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Users, Sparkles, Loader2, ArrowRight, Target, Heart, Frown } from 'lucide-react';
 import { useGeneratePersonas } from '@/hooks/use-ai-generation';
+import { AIProgress } from '@/components/ui/ai-progress';
 import { PersonaData } from '@/types';
 
 interface StepPersonasProps {
@@ -80,6 +81,19 @@ export default function StepPersonas({
                   </>
                 )}
               </Button>
+
+              <AIProgress
+                isActive={generatePersonasMutation.isPending}
+                estimatedDuration={20}
+                label="جاري توليد الشخصيات"
+                steps={[
+                  'تحليل فكرة المشروع...',
+                  'تحديد الفئات المستهدفة...',
+                  'بناء الشخصيات...',
+                  'تحديد نقاط الألم والأهداف...',
+                  'مراجعة النتائج...',
+                ]}
+              />
 
               {!hasPersonas && !generatePersonasMutation.isPending && (
                 <p className="text-sm text-muted-foreground">

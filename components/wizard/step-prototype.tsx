@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Rocket, Sparkles, Package, Star, Loader2, TrendingUp, Users, DollarSign, Edit2, Save, X, ArrowRight } from 'lucide-react';
 import { prototypeSchema, PrototypeInput } from '@/lib/validations/project.schema';
 import { useGenerateBusinessModel } from '@/hooks/use-ai-generation';
+import { AIProgress } from '@/components/ui/ai-progress';
 import { BusinessModelCanvas, MVPFeatures } from '@/types';
 import { useUpdateProject } from '@/hooks/use-projects';
 
@@ -172,6 +173,19 @@ export default function StepPrototype({
                     </>
                   )}
                 </Button>
+
+                <AIProgress
+                  isActive={generateBusinessModelMutation.isPending}
+                  estimatedDuration={25}
+                  label="جاري توليد نموذج الأعمال"
+                  steps={[
+                    'تحليل الحل المختار...',
+                    'بناء نموذج الأعمال التجارية...',
+                    'تحديد شرائح العملاء والقنوات...',
+                    'تحديد ميزات MVP...',
+                    'مراجعة النتائج...',
+                  ]}
+                />
               </div>
             ) : (
               <>

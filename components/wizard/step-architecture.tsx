@@ -14,6 +14,7 @@ import {
   ChevronDown, ChevronUp, Download, FileText, Box, Workflow
 } from 'lucide-react';
 import { useGenerateArchitecture } from '@/hooks/use-ai-generation';
+import { AIProgress } from '@/components/ui/ai-progress';
 import { SystemArchitecture } from '@/types';
 import { cn } from '@/lib/utils/cn';
 
@@ -310,6 +311,20 @@ ${architectureData.risks.map(r => `| ${r.risk} | ${r.impact} | ${r.mitigation} |
                     </>
                   )}
                 </Button>
+
+                <AIProgress
+                  isActive={generateArchitectureMutation.isPending}
+                  estimatedDuration={35}
+                  label="جاري توليد معمارية النظام"
+                  steps={[
+                    'تحليل المتطلبات التقنية...',
+                    'تصميم بنية النظام...',
+                    'تحديد قواعد البيانات والخدمات...',
+                    'تصميم واجهات البرمجة...',
+                    'تحديد البنية التحتية والأمان...',
+                    'مراجعة المعمارية...',
+                  ]}
+                />
               </div>
             ) : (
               <div className="space-y-4">
