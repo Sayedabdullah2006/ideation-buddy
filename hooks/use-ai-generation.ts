@@ -28,6 +28,22 @@ async function generatePersonas(projectId: string): Promise<{ personas: PersonaD
   return data.data;
 }
 
+async function generateProblemStatement(projectId: string, selectedPersonas: any[]): Promise<any> {
+  const response = await fetch('/api/ai/generate-problem-statement', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ projectId, selectedPersonas }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.success) {
+    throw new Error(data.error || 'فشل توليد بيان المشكلة');
+  }
+
+  return data.data;
+}
+
 async function refineProblem(projectId: string, problemStatement: string): Promise<any> {
   const response = await fetch('/api/ai/refine-problem', {
     method: 'POST',
@@ -166,6 +182,33 @@ export function useGeneratePersonas() {
     onError: (error: Error) => {
       toast({
         title: 'خطأ في إنشاء الشخصيات',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+/**
+ * Hook: Generate Problem Statement from Personas (Step 2)
+ */
+export function useGenerateProblemStatement() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: ({ projectId, selectedPersonas }: { projectId: string; selectedPersonas: any[] }) =>
+      generateProblemStatement(projectId, selectedPersonas),
+    onSuccess: (_data, { projectId }) => {
+      toast({
+        title: 'تم توليد بيان المشكلة',
+        description: 'تم توليد بيان المشكلة بناءً على الشخصيات المختارة',
+      });
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'خطأ في توليد بيان المشكلة',
         description: error.message,
         variant: 'destructive',
       });

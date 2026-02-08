@@ -188,6 +188,72 @@ Generate the personas now as valid JSON.`;
 }
 
 // ============================================
+// STEP 2: DEFINE - PROBLEM STATEMENT GENERATION
+// ============================================
+
+export function buildProblemStatementPrompt(projectData: {
+  title: string;
+  description: string;
+  rawIdea: string;
+  selectedPersonas: any[];
+}): string {
+  const personasContext = projectData.selectedPersonas
+    .map(
+      (p, i) => `**Persona ${i + 1}: ${p.name}**
+- Age: ${p.age}, Occupation: ${p.occupation}
+- Bio: ${p.bio}
+- Pain Points: ${p.painPoints?.join(', ') || 'Not specified'}
+- Goals: ${p.goals?.join(', ') || 'Not specified'}
+- Frustrations: ${p.frustrations?.join(', ') || 'Not specified'}`
+    )
+    .join('\n\n');
+
+  return `**TASK:** Generate a clear, user-centered problem statement based on the project idea and the selected user personas.
+
+**PROJECT INFORMATION:**
+- Title: ${projectData.title}
+- Description: ${projectData.description}
+- Raw Idea: ${projectData.rawIdea}
+
+**SELECTED USER PERSONAS:**
+${personasContext}
+
+**INSTRUCTIONS:**
+1. Analyze the pain points, goals, and frustrations of ALL selected personas
+2. Identify the common thread / core problem that connects them
+3. Generate 3 problem statement alternatives using the "How Might We" (HMW) framework
+4. Each statement should be specific, actionable, and user-centered
+5. Recommend the best one and explain why
+
+**OUTPUT FORMAT (Valid JSON):**
+\`\`\`json
+{
+  "refinedStatements": [
+    {
+      "id": "hmw-1",
+      "statement": "How might we [problem statement addressing the personas' needs]?",
+      "reasoning": "Explanation of why this framing addresses the personas' core needs"
+    },
+    {
+      "id": "hmw-2",
+      "statement": "How might we [alternative framing]?",
+      "reasoning": "Explanation of this approach"
+    },
+    {
+      "id": "hmw-3",
+      "statement": "How might we [another angle]?",
+      "reasoning": "Why this perspective matters"
+    }
+  ],
+  "recommended": "hmw-1",
+  "insights": "Overall insights about the problem space based on the selected personas"
+}
+\`\`\`
+
+Generate the problem statements now as valid JSON.`;
+}
+
+// ============================================
 // STEP 2: DEFINE - PROBLEM REFINEMENT
 // ============================================
 
@@ -198,11 +264,19 @@ export function buildProblemRefinementPrompt(projectData: {
   selectedPersona?: any;
   problemStatement: string;
 }): string {
-  const personaContext = projectData.selectedPersona
-    ? `\n**SELECTED USER PERSONA:**
-- Name: ${projectData.selectedPersona.name}
-- Occupation: ${projectData.selectedPersona.occupation}
-- Key Pain Points: ${projectData.selectedPersona.painPoints.join(', ')}`
+  const personas = Array.isArray(projectData.selectedPersona)
+    ? projectData.selectedPersona
+    : projectData.selectedPersona
+    ? [projectData.selectedPersona]
+    : [];
+
+  const personaContext = personas.length > 0
+    ? '\n**SELECTED USER PERSONAS:**\n' +
+      personas
+        .map(
+          (p: any) => `- ${p.name} (${p.occupation}): Pain Points: ${p.painPoints?.join(', ') || 'N/A'}`
+        )
+        .join('\n')
     : '';
 
   return `**TASK:** Refine the problem statement to be clear, user-centered, and actionable.
@@ -261,10 +335,19 @@ export function buildSolutionGenerationPrompt(projectData: {
   problemStatement: string;
   selectedPersona?: any;
 }): string {
-  const personaContext = projectData.selectedPersona
-    ? `\n**TARGET USER:**
-- ${projectData.selectedPersona.name} (${projectData.selectedPersona.occupation})
-- Pain Points: ${projectData.selectedPersona.painPoints.join(', ')}`
+  const personas = Array.isArray(projectData.selectedPersona)
+    ? projectData.selectedPersona
+    : projectData.selectedPersona
+    ? [projectData.selectedPersona]
+    : [];
+
+  const personaContext = personas.length > 0
+    ? '\n**TARGET USERS:**\n' +
+      personas
+        .map(
+          (p: any) => `- ${p.name} (${p.occupation}): Pain Points: ${p.painPoints?.join(', ') || 'N/A'}`
+        )
+        .join('\n')
     : '';
 
   return `**TASK:** Generate 5-7 innovative solutions to the defined problem.
@@ -1136,6 +1219,7 @@ export function buildPromptForStep(
 
 export default {
   buildPersonaPrompt,
+  buildProblemStatementPrompt,
   buildProblemRefinementPrompt,
   buildSolutionGenerationPrompt,
   buildBusinessModelPrompt,

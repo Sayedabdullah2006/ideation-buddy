@@ -2,7 +2,7 @@
 
 /**
  * Step 2: Define
- * Refine problem statement and select persona
+ * Select multiple personas and generate/refine problem statement with AI
  */
 
 import { useForm } from 'react-hook-form';
@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Target, Users, Sparkles, AlertCircle, Loader2, CheckCircle2 } from 'lucide-react';
 import { defineSchema, DefineInput } from '@/lib/validations/project.schema';
-import { useRefineProblem } from '@/hooks/use-ai-generation';
+import { useRefineProblem, useGenerateProblemStatement } from '@/hooks/use-ai-generation';
 import { useState } from 'react';
 
 interface StepDefineProps {
@@ -37,6 +37,7 @@ export default function StepDefine({
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors, isValid },
   } = useForm<DefineInput>({
     resolver: zodResolver(defineSchema),
@@ -45,28 +46,67 @@ export default function StepDefine({
   });
 
   const [selectedRefinement, setSelectedRefinement] = useState<string | null>(null);
-  const [selectedPersonaIndex, setSelectedPersonaIndex] = useState<number | null>(
-    initialData?.selectedPersona ? personas?.findIndex(p => p.id === initialData.selectedPersona?.id) ?? null : null
-  );
+
+  // Multi-persona selection: initialize from saved data
+  const [selectedPersonaIndices, setSelectedPersonaIndices] = useState<number[]>(() => {
+    if (!initialData?.selectedPersona) return [];
+    const saved = Array.isArray(initialData.selectedPersona)
+      ? initialData.selectedPersona
+      : [initialData.selectedPersona];
+    return saved
+      .map((sp: any) => personas?.findIndex((p) => p.id === sp.id))
+      .filter((i: number) => i !== -1);
+  });
+
+  // AI generation state
+  const [generatedStatements, setGeneratedStatements] = useState<any>(problemStatementRefined || null);
   const refineProblemMutation = useRefineProblem();
+  const generateProblemMutation = useGenerateProblemStatement();
   const problemStatement = watch('problemStatement');
 
-  const handlePersonaSelect = (index: number) => {
-    setSelectedPersonaIndex(index);
+  const togglePersona = (index: number) => {
+    setSelectedPersonaIndices((prev) =>
+      prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]
+    );
   };
 
   const handleFormSubmit = (data: DefineInput) => {
-    const selectedPersona = selectedPersonaIndex !== null ? personas[selectedPersonaIndex] : null;
+    const selectedPersonas = selectedPersonaIndices.map((i) => personas[i]);
     onSubmit({
       ...data,
-      selectedPersona,
+      selectedPersona: selectedPersonas,
     });
+  };
+
+  const handleGenerateProblemStatement = () => {
+    if (!projectId || selectedPersonaIndices.length === 0) return;
+    const selectedPersonas = selectedPersonaIndices.map((i) => personas[i]);
+    generateProblemMutation.mutate(
+      { projectId, selectedPersonas },
+      {
+        onSuccess: (data) => {
+          setGeneratedStatements(data);
+        },
+      }
+    );
   };
 
   const handleRefineProblem = () => {
     if (projectId && problemStatement) {
-      refineProblemMutation.mutate({ projectId, problemStatement });
+      refineProblemMutation.mutate(
+        { projectId, problemStatement },
+        {
+          onSuccess: (data) => {
+            setGeneratedStatements(data);
+          },
+        }
+      );
     }
+  };
+
+  const handleSelectStatement = (statement: string, id: string) => {
+    setValue('problemStatement', statement, { shouldValidate: true });
+    setSelectedRefinement(id);
   };
 
   return (
@@ -78,12 +118,12 @@ export default function StepDefine({
         </div>
         <h2 className="text-3xl font-bold">الخطوة 2: حدد</h2>
         <p className="text-muted-foreground text-lg">
-          صياغة بيان المشكلة بوضوح
+          اختر الشخصيات المستهدفة وصِغ بيان المشكلة
         </p>
       </div>
 
       <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
-        {/* Personas Section (AI Generated in Phase 4) */}
+        {/* Personas Section - Multi-select */}
         {personas && personas.length > 0 ? (
           <Card>
             <CardHeader>
@@ -92,48 +132,51 @@ export default function StepDefine({
                 شخصيات المستخدمين
               </CardTitle>
               <CardDescription>
-                اختر الشخصية التي تريد التركيز عليها
+                اختر شخصية واحدة أو أكثر للتركيز عليها ({selectedPersonaIndices.length} مختارة)
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {personas.map((persona, index) => (
-                <Card
-                  key={persona.id || index}
-                  className={`cursor-pointer transition-all ${
-                    selectedPersonaIndex === index
-                      ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
-                      : 'hover:border-primary/50'
-                  }`}
-                  onClick={() => handlePersonaSelect(index)}
-                >
-                  <CardContent className="pt-6">
-                    <div className="flex items-start gap-3">
-                      {selectedPersonaIndex === index && (
-                        <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
-                      )}
-                      <div className="flex-1">
-                        <h4 className="font-semibold">{persona.name}</h4>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {persona.age} سنة - {persona.occupation}
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-2">
-                          {persona.bio}
-                        </p>
-                        {persona.painPoints && persona.painPoints.length > 0 && (
-                          <div className="mt-3">
-                            <p className="text-xs font-medium text-destructive">نقاط الألم:</p>
-                            <ul className="text-xs text-muted-foreground mt-1 list-disc list-inside">
-                              {persona.painPoints.slice(0, 2).map((point: string, i: number) => (
-                                <li key={i}>{point}</li>
-                              ))}
-                            </ul>
-                          </div>
+              {personas.map((persona, index) => {
+                const isSelected = selectedPersonaIndices.includes(index);
+                return (
+                  <Card
+                    key={persona.id || index}
+                    className={`cursor-pointer transition-all ${
+                      isSelected
+                        ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
+                        : 'hover:border-primary/50'
+                    }`}
+                    onClick={() => togglePersona(index)}
+                  >
+                    <CardContent className="pt-6">
+                      <div className="flex items-start gap-3">
+                        {isSelected && (
+                          <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
                         )}
+                        <div className="flex-1">
+                          <h4 className="font-semibold">{persona.name}</h4>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {persona.age} سنة - {persona.occupation}
+                          </p>
+                          <p className="text-sm text-muted-foreground mt-2">
+                            {persona.bio}
+                          </p>
+                          {persona.painPoints && persona.painPoints.length > 0 && (
+                            <div className="mt-3">
+                              <p className="text-xs font-medium text-destructive">نقاط الألم:</p>
+                              <ul className="text-xs text-muted-foreground mt-1 list-disc list-inside">
+                                {persona.painPoints.slice(0, 2).map((point: string, i: number) => (
+                                  <li key={i}>{point}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </CardContent>
           </Card>
         ) : (
@@ -146,7 +189,7 @@ export default function StepDefine({
                 <div>
                   <h3 className="font-semibold">شخصيات المستخدمين</h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    في المرحلة 4، ستظهر هنا 3 شخصيات مستخدمين تم توليدها بالذكاء الاصطناعي
+                    يرجى العودة للخطوة السابقة لتوليد الشخصيات أولاً
                   </p>
                 </div>
               </div>
@@ -154,7 +197,105 @@ export default function StepDefine({
           </Card>
         )}
 
-        {/* Problem Statement */}
+        {/* AI Problem Statement Generation */}
+        {personas && personas.length > 0 && (
+          <Card className={generatedStatements ? 'border-primary/50' : 'bg-muted/50 border-dashed'}>
+            <CardContent className="pt-6">
+              <div className="text-center space-y-3">
+                <div className="mx-auto w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
+                  <Sparkles className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">توليد بيان المشكلة بالذكاء الاصطناعي</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    سيتم توليد بيان المشكلة بناءً على الشخصيات المختارة باستخدام إطار "كيف يمكننا"
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleGenerateProblemStatement}
+                  disabled={
+                    !projectId ||
+                    selectedPersonaIndices.length === 0 ||
+                    generateProblemMutation.isPending
+                  }
+                >
+                  {generateProblemMutation.isPending ? (
+                    <>
+                      <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                      جاري التوليد...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="ml-2 h-4 w-4" />
+                      {generatedStatements ? 'إعادة التوليد' : 'توليد بيان المشكلة'}
+                    </>
+                  )}
+                </Button>
+                {selectedPersonaIndices.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    اختر شخصية واحدة على الأقل لتوليد بيان المشكلة
+                  </p>
+                )}
+              </div>
+
+              {/* Display Generated Statements */}
+              {generatedStatements?.refinedStatements && (
+                <div className="mt-6 space-y-4">
+                  <h4 className="font-semibold text-center">
+                    البيانات المولدة (How Might We):
+                  </h4>
+                  <p className="text-xs text-muted-foreground text-center">
+                    اضغط على أحد البيانات لاستخدامه
+                  </p>
+                  <div className="space-y-3">
+                    {generatedStatements.refinedStatements.map((item: any) => (
+                      <Card
+                        key={item.id}
+                        className={`cursor-pointer transition-all ${
+                          selectedRefinement === item.id
+                            ? 'border-primary bg-primary/5'
+                            : item.id === generatedStatements.recommended
+                            ? 'border-green-500 bg-green-50 dark:bg-green-950/20'
+                            : 'bg-background hover:border-primary/50'
+                        }`}
+                        onClick={() => handleSelectStatement(item.statement, item.id)}
+                      >
+                        <CardContent className="pt-4">
+                          <div className="flex items-start gap-3">
+                            {item.id === generatedStatements.recommended && (
+                              <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                            )}
+                            <div className="flex-1">
+                              <p className="font-semibold text-sm mb-2">{item.statement}</p>
+                              <p className="text-xs text-muted-foreground">{item.reasoning}</p>
+                              {item.id === generatedStatements.recommended && (
+                                <span className="inline-block mt-2 text-xs bg-green-600 text-white px-2 py-1 rounded-full">
+                                  موصى به
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                  {generatedStatements.insights && (
+                    <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+                      <h5 className="font-semibold text-sm mb-2">رؤى إضافية:</h5>
+                      <p className="text-sm text-muted-foreground">
+                        {generatedStatements.insights}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Problem Statement - Manual input / editable */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -162,7 +303,7 @@ export default function StepDefine({
               بيان المشكلة
             </CardTitle>
             <CardDescription>
-              صف المشكلة التي يواجهها المستخدمون بوضوح
+              يمكنك استخدام البيان المولد بالذكاء الاصطناعي أو كتابة بيانك الخاص
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -178,6 +319,31 @@ export default function StepDefine({
                 <p className="text-sm text-destructive">
                   {errors.problemStatement.message}
                 </p>
+              )}
+
+              {/* Refine existing statement */}
+              {problemStatement && problemStatement.length >= 20 && (
+                <div className="flex justify-end mt-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRefineProblem}
+                    disabled={!projectId || refineProblemMutation.isPending}
+                  >
+                    {refineProblemMutation.isPending ? (
+                      <>
+                        <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                        جاري التحسين...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="ml-2 h-4 w-4" />
+                        تحسين البيان
+                      </>
+                    )}
+                  </Button>
+                </div>
               )}
 
               {/* Tips */}
@@ -197,92 +363,24 @@ export default function StepDefine({
           </CardContent>
         </Card>
 
-        {/* AI Problem Refinement */}
-        <Card className={problemStatementRefined ? "border-primary/50" : "bg-muted/50 border-dashed"}>
-          <CardContent className="pt-6">
-            <div className="text-center space-y-3">
-              <div className="mx-auto w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
-                <Sparkles className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold">تحسين بيان المشكلة بالذكاء الاصطناعي</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  سيتم تحسين وصياغة بيان المشكلة بشكل أفضل باستخدام إطار "كيف يمكننا"
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleRefineProblem}
-                disabled={!projectId || !problemStatement || problemStatement.length < 20 || refineProblemMutation.isPending}
-              >
-                {refineProblemMutation.isPending ? (
-                  <>
-                    <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                    جاري التحسين...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="ml-2 h-4 w-4" />
-                    {problemStatementRefined ? 'إعادة التحسين' : 'تحسين البيان'}
-                  </>
-                )}
-              </Button>
-            </div>
-
-            {/* Display Refined Statements */}
-            {problemStatementRefined?.refinedStatements && (
-              <div className="mt-6 space-y-4">
-                <h4 className="font-semibold text-center">البدائل المحسنة (How Might We):</h4>
-                <div className="space-y-3">
-                  {problemStatementRefined.refinedStatements.map((item: any) => (
-                    <Card
-                      key={item.id}
-                      className={`cursor-pointer transition-all ${
-                        selectedRefinement === item.id
-                          ? 'border-primary bg-primary/5'
-                          : item.id === problemStatementRefined.recommended
-                          ? 'border-green-500 bg-green-50 dark:bg-green-950/20'
-                          : 'bg-background hover:border-primary/50'
-                      }`}
-                      onClick={() => setSelectedRefinement(item.id)}
-                    >
-                      <CardContent className="pt-4">
-                        <div className="flex items-start gap-3">
-                          {item.id === problemStatementRefined.recommended && (
-                            <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                          )}
-                          <div className="flex-1">
-                            <p className="font-semibold text-sm mb-2">{item.statement}</p>
-                            <p className="text-xs text-muted-foreground">{item.reasoning}</p>
-                            {item.id === problemStatementRefined.recommended && (
-                              <span className="inline-block mt-2 text-xs bg-green-600 text-white px-2 py-1 rounded-full">
-                                موصى به
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-                {problemStatementRefined.insights && (
-                  <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
-                    <h5 className="font-semibold text-sm mb-2">رؤى إضافية:</h5>
-                    <p className="text-sm text-muted-foreground">{problemStatementRefined.insights}</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
         {/* Submit */}
-        <div className="flex justify-end">
-          <Button type="submit" size="lg" disabled={!isValid}>
-            حفظ والمتابعة
-            <Target className="mr-2 h-5 w-5" />
-          </Button>
+        <div className="flex justify-between">
+          {onBack && (
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={() => onBack?.()}
+            >
+              السابق
+            </Button>
+          )}
+          <div className={!onBack ? 'mr-auto' : ''}>
+            <Button type="submit" size="lg" disabled={!isValid}>
+              حفظ والمتابعة
+              <Target className="mr-2 h-5 w-5" />
+            </Button>
+          </div>
         </div>
       </form>
     </div>
