@@ -11,10 +11,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Layout, Sparkles, Download, FileText, Code, Loader2, Monitor, ArrowRight, Palette, FileCode, FolderDown, Eye, X, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
+import { Layout, Sparkles, Download, FileText, Code, Loader2, Monitor, ArrowRight, Palette, FileCode, FolderDown, Eye, X, ChevronLeft, ChevronRight, Maximize2, Minimize2, Play } from 'lucide-react';
 import { useGenerateMockups } from '@/hooks/use-ai-generation';
 import { MockupData, ScreenMockup } from '@/types';
-import { generateScreenHTML, generateAllMockupHTML } from '@/lib/mockup-html-generator';
+import { generateScreenHTML, generateAllMockupHTML, generateFullMVPHTML } from '@/lib/mockup-html-generator';
 import JSZip from 'jszip';
 
 const mockupSchema = z.object({});
@@ -167,6 +167,11 @@ ${mockupData.designGuidelines?.components?.map(c => `- ${c}`).join('\n')}
   const [previewScreenIndex, setPreviewScreenIndex] = useState<number | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // SPA interactive preview state
+  const [isSPAPreviewOpen, setIsSPAPreviewOpen] = useState(false);
+  const [spaHTML, setSpaHTML] = useState<string>('');
+  const [currentSPAPage, setCurrentSPAPage] = useState<string>('home');
+
   const isPreviewOpen = previewScreenIndex !== null;
   const currentPreviewScreen = isPreviewOpen && mockupData?.screens ? mockupData.screens[previewScreenIndex] : null;
 
@@ -216,6 +221,37 @@ ${mockupData.designGuidelines?.components?.map(c => `- ${c}`).join('\n')}
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isPreviewOpen, previewScreenIndex]);
+
+  // Launch SPA interactive preview
+  const handleLaunchSPA = useCallback(() => {
+    if (!mockupData) return;
+    const html = generateFullMVPHTML(mockupData, projectTitle);
+    setSpaHTML(html);
+    setCurrentSPAPage('home');
+    setIsSPAPreviewOpen(true);
+  }, [mockupData, projectTitle]);
+
+  // Listen for postMessage from SPA iframe
+  useEffect(() => {
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'pageChanged') {
+        setCurrentSPAPage(e.data.page);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
+  // Close SPA preview on Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isSPAPreviewOpen) {
+        setIsSPAPreviewOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSPAPreviewOpen]);
 
   // Generate HTML for preview
   const getPreviewHTML = useCallback((screen: ScreenMockup) => {
@@ -359,6 +395,64 @@ ${mockupData.screens?.map(s => `- ${s.id}.html - ${s.name} (${s.nameEn})`).join(
         </div>
       )}
 
+      {/* SPA Interactive Preview Modal */}
+      {isSPAPreviewOpen && spaHTML && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex flex-col">
+          {/* Top bar */}
+          <div className="flex items-center justify-between px-4 py-2 bg-black/50 backdrop-blur-sm">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsSPAPreviewOpen(false)}
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div className="text-white">
+                <span className="font-semibold">{projectTitle}</span>
+                <span className="mx-2 text-white/60">|</span>
+                <span className="text-white/80 text-sm">النموذج التفاعلي الكامل</span>
+              </div>
+            </div>
+            <div className="text-white/60 text-xs">
+              <span>ESC للإغلاق</span>
+              <span className="mx-2">|</span>
+              <span>الصفحة الحالية: {currentSPAPage}</span>
+            </div>
+          </div>
+
+          {/* Iframe */}
+          <div className="flex-1 bg-white">
+            <iframe
+              srcDoc={spaHTML}
+              className="w-full h-full border-0"
+              title={`${projectTitle} - النموذج التفاعلي`}
+              sandbox="allow-scripts allow-same-origin"
+            />
+          </div>
+
+          {/* Bottom navigation bar */}
+          <div className="flex items-center justify-center gap-1 px-4 py-2 bg-black/50 backdrop-blur-sm overflow-x-auto">
+            {mockupData?.screens?.map((screen) => (
+              <button
+                key={screen.id}
+                onClick={() => {
+                  const iframe = document.querySelector('iframe') as HTMLIFrameElement;
+                  iframe?.contentWindow?.postMessage({ type: 'navigate', page: screen.id }, '*');
+                }}
+                className={`px-3 py-1.5 text-xs rounded-full transition-colors whitespace-nowrap ${
+                  currentSPAPage === screen.id
+                    ? 'bg-white text-black'
+                    : 'text-white/80 hover:text-white hover:bg-white/20'
+                }`}
+                title={screen.name}
+              >
+                {screen.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="text-center space-y-2">
         <div className="mx-auto w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center">
@@ -438,19 +532,29 @@ ${mockupData.screens?.map(s => `- ${s.id}.html - ${s.name} (${s.nameEn})`).join(
                   {/* Screens */}
                   <Card>
                     <CardHeader>
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
                         <CardTitle className="flex items-center gap-2">
                           <Monitor className="w-5 h-5" />
                           الشاشات الرئيسية ({mockupData.screens?.length || 0})
                         </CardTitle>
-                        <Button
-                          type="button"
-                          onClick={() => openPreview(0)}
-                          className="bg-primary"
-                        >
-                          <Eye className="ml-2 h-4 w-4" />
-                          معاينة جميع الشاشات
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            onClick={handleLaunchSPA}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            <Play className="ml-2 h-4 w-4" />
+                            تشغيل النموذج التفاعلي
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => openPreview(0)}
+                          >
+                            <Eye className="ml-2 h-4 w-4" />
+                            معاينة الشاشات
+                          </Button>
+                        </div>
                       </div>
                       <CardDescription>
                         انقر على "معاينة" لعرض الشاشة في وضع المعاينة التفاعلية

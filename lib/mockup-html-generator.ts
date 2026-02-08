@@ -1651,6 +1651,12 @@ function generateLoginContent(screen: ScreenMockup, projectContext?: ProjectCont
                 <p class="text-muted">أدخل بياناتك للوصول إلى حسابك</p>
               </div>
 
+              <div class="alert alert-info mb-3" style="text-align: right;">
+                <strong>بيانات تجريبية للتجربة:</strong><br>
+                البريد: <code style="background:#e0e7ff;padding:2px 6px;border-radius:4px;">test@test.com</code><br>
+                كلمة المرور: <code style="background:#e0e7ff;padding:2px 6px;border-radius:4px;">123456</code>
+              </div>
+
               <form data-action="login">
                 <div class="form-group">
                   <label class="form-label">البريد الإلكتروني <span class="required">*</span></label>
@@ -2689,8 +2695,759 @@ export function generateAllMockupHTML(
   return files;
 }
 
+/**
+ * Generate SPA JavaScript with router, auth, CRUD, and demo data
+ */
+function generateSPAJavaScript(screens: ScreenMockup[], projectContext?: ProjectContext): string {
+  const businessModel = projectContext?.businessModel || {};
+  const mvpFeatures = projectContext?.mvpFeatures || {};
+  const coreFeatures = mvpFeatures.core || [];
+  const projectTitle = projectContext?.title || 'المنصة';
+
+  // Generate demo items based on project context
+  const demoItemsJSON = JSON.stringify([
+    { id: 1, title: coreFeatures[0]?.title || 'عنصر تجريبي 1', description: coreFeatures[0]?.description || 'وصف العنصر الأول', status: 'active', createdAt: new Date().toISOString() },
+    { id: 2, title: coreFeatures[1]?.title || 'عنصر تجريبي 2', description: coreFeatures[1]?.description || 'وصف العنصر الثاني', status: 'active', createdAt: new Date().toISOString() },
+    { id: 3, title: coreFeatures[2]?.title || 'عنصر تجريبي 3', description: coreFeatures[2]?.description || 'وصف العنصر الثالث', status: 'pending', createdAt: new Date().toISOString() },
+    { id: 4, title: 'طلب جديد', description: 'طلب في انتظار المراجعة', status: 'pending', createdAt: new Date().toISOString() },
+    { id: 5, title: 'مهمة مكتملة', description: 'تم إنجازها بنجاح', status: 'active', createdAt: new Date().toISOString() },
+  ]);
+
+  return `
+    // SPA MVP Application
+    const MVPApp = {
+      state: {
+        user: null,
+        isAuthenticated: false,
+        currentPage: 'home',
+        data: [],
+        notifications: [],
+        settings: {
+          language: 'ar',
+          darkMode: false,
+          notifications: true
+        }
+      },
+
+      // Initialize
+      init() {
+        this.loadState();
+        this.seedDemoData();
+        this.setupEventListeners();
+        this.checkAuth();
+        this.updateUI();
+        this.router.init();
+        console.log('MVP SPA Application initialized');
+      },
+
+      // Seed demo data if empty
+      seedDemoData() {
+        if (this.state.data.length === 0) {
+          this.state.data = ${demoItemsJSON};
+          this.saveState();
+        }
+      },
+
+      // State Management
+      loadState() {
+        try {
+          const saved = localStorage.getItem('mvp_spa_state');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            this.state = { ...this.state, ...parsed };
+          }
+        } catch (e) {
+          console.error('Error loading state:', e);
+        }
+      },
+
+      saveState() {
+        try {
+          localStorage.setItem('mvp_spa_state', JSON.stringify(this.state));
+        } catch (e) {
+          console.error('Error saving state:', e);
+        }
+      },
+
+      // SPA Router
+      router: {
+        history: [],
+        currentPage: 'home',
+
+        init() {
+          // Listen for postMessage from parent frame
+          window.addEventListener('message', (e) => {
+            if (e.data && e.data.type === 'navigate') {
+              MVPApp.router.showPage(e.data.page);
+            }
+          });
+
+          // Show initial page
+          const hash = window.location.hash.replace('#', '');
+          this.showPage(hash || 'home', false);
+        },
+
+        showPage(pageId, pushHistory) {
+          if (pushHistory === undefined) pushHistory = true;
+          // Normalize
+          pageId = (pageId || 'home').replace('.html', '').replace('#', '');
+          if (pageId === 'index') pageId = 'home';
+
+          // Auth guard
+          var protectedPages = ['dashboard', 'list', 'profile', 'settings'];
+          if (protectedPages.indexOf(pageId) !== -1 && !MVPApp.state.isAuthenticated) {
+            MVPApp.showToast('يجب تسجيل الدخول أولاً', 'warning');
+            pageId = 'login';
+          }
+
+          // Hide all pages
+          document.querySelectorAll('.spa-page').forEach(function(p) {
+            p.style.display = 'none';
+          });
+
+          // Show target
+          var target = document.getElementById('page-' + pageId);
+          if (target) {
+            target.style.display = 'block';
+          } else {
+            // Try matching screen IDs
+            var allPages = document.querySelectorAll('.spa-page');
+            var found = false;
+            allPages.forEach(function(p) {
+              if (p.id.replace('page-', '') === pageId) {
+                p.style.display = 'block';
+                found = true;
+              }
+            });
+            if (!found) {
+              var home = document.getElementById('page-home');
+              if (home) home.style.display = 'block';
+              pageId = 'home';
+            }
+          }
+
+          // Update nav active states
+          document.querySelectorAll('.nav-link').forEach(function(link) {
+            link.classList.remove('active');
+            if (link.getAttribute('data-page') === pageId) {
+              link.classList.add('active');
+            }
+          });
+
+          // Scroll to top
+          window.scrollTo(0, 0);
+
+          // History
+          if (pushHistory && this.currentPage !== pageId) {
+            this.history.push(this.currentPage);
+          }
+          this.currentPage = pageId;
+
+          // Notify parent frame
+          if (window.parent !== window) {
+            window.parent.postMessage({ type: 'pageChanged', page: pageId }, '*');
+          }
+
+          // Update UI for the new page
+          MVPApp.updateUI();
+        },
+
+        goBack() {
+          if (this.history.length > 0) {
+            var prevPage = this.history.pop();
+            this.showPage(prevPage, false);
+          }
+        }
+      },
+
+      navigate(page) {
+        this.router.showPage(page);
+      },
+
+      // Authentication
+      checkAuth() {
+        var token = localStorage.getItem('mvp_spa_token');
+        if (token && this.state.user) {
+          this.state.isAuthenticated = true;
+          this.updateAuthUI(true);
+        }
+      },
+
+      login(email, password) {
+        if ((email === 'test@test.com' && password === '123456') || (email && password.length >= 6)) {
+          this.state.user = {
+            id: Date.now(),
+            email: email,
+            name: email === 'test@test.com' ? 'مستخدم تجريبي' : email.split('@')[0],
+            createdAt: new Date().toISOString()
+          };
+          this.state.isAuthenticated = true;
+          localStorage.setItem('mvp_spa_token', 'demo_token_' + Date.now());
+          this.saveState();
+          this.showToast('تم تسجيل الدخول بنجاح', 'success');
+          this.updateAuthUI(true);
+          var self = this;
+          setTimeout(function() { self.navigate('dashboard'); }, 800);
+          return true;
+        }
+        this.showToast('بيانات غير صحيحة', 'error');
+        return false;
+      },
+
+      register(name, email, password) {
+        if (name && email && password.length >= 6) {
+          this.state.user = {
+            id: Date.now(),
+            email: email,
+            name: name,
+            createdAt: new Date().toISOString()
+          };
+          this.state.isAuthenticated = true;
+          localStorage.setItem('mvp_spa_token', 'demo_token_' + Date.now());
+          this.saveState();
+          this.showToast('تم إنشاء الحساب بنجاح', 'success');
+          this.updateAuthUI(true);
+          var self = this;
+          setTimeout(function() { self.navigate('dashboard'); }, 800);
+          return true;
+        }
+        this.showToast('يرجى ملء جميع الحقول بشكل صحيح', 'error');
+        return false;
+      },
+
+      logout() {
+        this.state.user = null;
+        this.state.isAuthenticated = false;
+        localStorage.removeItem('mvp_spa_token');
+        this.saveState();
+        this.showToast('تم تسجيل الخروج', 'success');
+        this.updateAuthUI(false);
+        var self = this;
+        setTimeout(function() { self.navigate('home'); }, 500);
+      },
+
+      updateAuthUI(isLoggedIn) {
+        document.querySelectorAll('.auth-login-btn').forEach(function(btn) { btn.style.display = isLoggedIn ? 'none' : ''; });
+        document.querySelectorAll('.auth-logout-btn').forEach(function(btn) { btn.style.display = isLoggedIn ? '' : 'none'; });
+        document.querySelectorAll('.user-menu').forEach(function(menu) { menu.style.display = isLoggedIn ? '' : 'none'; });
+        document.querySelectorAll('.user-name').forEach(function(el) {
+          if (MVPApp.state.user) el.textContent = MVPApp.state.user.name || '';
+        });
+      },
+
+      // CRUD
+      addItem(item) {
+        var newItem = Object.assign({ id: Date.now(), createdAt: new Date().toISOString(), status: 'active' }, item);
+        this.state.data.push(newItem);
+        this.saveState();
+        this.showToast('تمت الإضافة بنجاح', 'success');
+        return newItem;
+      },
+
+      updateItem(id, updates) {
+        var index = this.state.data.findIndex(function(item) { return item.id === id; });
+        if (index !== -1) {
+          this.state.data[index] = Object.assign({}, this.state.data[index], updates);
+          this.saveState();
+          this.showToast('تم التحديث بنجاح', 'success');
+          return this.state.data[index];
+        }
+        return null;
+      },
+
+      deleteItem(id) {
+        var index = this.state.data.findIndex(function(item) { return item.id === id; });
+        if (index !== -1) {
+          this.state.data.splice(index, 1);
+          this.saveState();
+          this.showToast('تم الحذف بنجاح', 'success');
+          return true;
+        }
+        return false;
+      },
+
+      getItems(filter) {
+        filter = filter || {};
+        var items = this.state.data.slice();
+        if (filter.status) {
+          items = items.filter(function(item) { return item.status === filter.status; });
+        }
+        if (filter.search) {
+          var search = filter.search.toLowerCase();
+          items = items.filter(function(item) {
+            return (item.title && item.title.toLowerCase().indexOf(search) !== -1) ||
+                   (item.name && item.name.toLowerCase().indexOf(search) !== -1) ||
+                   (item.description && item.description.toLowerCase().indexOf(search) !== -1);
+          });
+        }
+        return items;
+      },
+
+      // Toast
+      showToast(message, type) {
+        type = type || 'success';
+        var container = document.querySelector('.toast-container') || this.createToastContainer();
+        var toast = document.createElement('div');
+        toast.className = 'toast ' + type;
+        toast.innerHTML = '<span class="toast-icon">' + (type === 'success' ? '✓' : type === 'error' ? '✕' : '⚠') + '</span><span class="toast-message">' + message + '</span>';
+        container.appendChild(toast);
+        setTimeout(function() { toast.remove(); }, 4000);
+      },
+
+      createToastContainer() {
+        var container = document.createElement('div');
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+        return container;
+      },
+
+      // Modal
+      openModal(modalId) {
+        var modal = document.getElementById(modalId);
+        if (modal) {
+          modal.classList.add('show');
+          document.body.style.overflow = 'hidden';
+        }
+      },
+
+      closeModal(modalId) {
+        var modal = document.getElementById(modalId);
+        if (modal) {
+          modal.classList.remove('show');
+          document.body.style.overflow = '';
+        }
+      },
+
+      // Form Validation
+      validateForm(form) {
+        var isValid = true;
+        var inputs = form.querySelectorAll('[required]');
+        inputs.forEach(function(input) {
+          var errorEl = input.parentElement.querySelector('.form-error');
+          if (!input.value.trim()) {
+            input.classList.add('error');
+            if (errorEl) errorEl.style.display = 'block';
+            isValid = false;
+          } else {
+            input.classList.remove('error');
+            if (errorEl) errorEl.style.display = 'none';
+          }
+          if (input.type === 'email' && input.value) {
+            if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(input.value)) {
+              input.classList.add('error');
+              isValid = false;
+            }
+          }
+          if (input.type === 'password' && input.value && input.value.length < 6) {
+            input.classList.add('error');
+            isValid = false;
+          }
+        });
+        return isValid;
+      },
+
+      // Settings
+      updateSettings(key, value) {
+        this.state.settings[key] = value;
+        this.saveState();
+        this.showToast('تم حفظ الإعدادات', 'success');
+      },
+
+      // Setup Event Listeners
+      setupEventListeners() {
+        var self = this;
+
+        // SPA navigation via data-page attributes (delegated)
+        document.addEventListener('click', function(e) {
+          var target = e.target.closest('[data-page]');
+          if (target) {
+            e.preventDefault();
+            var page = target.getAttribute('data-page');
+            self.navigate(page);
+          }
+        });
+
+        // Form submissions
+        document.addEventListener('submit', function(e) {
+          var form = e.target.closest('form[data-action]');
+          if (!form) return;
+          e.preventDefault();
+          if (!self.validateForm(form)) return;
+
+          var action = form.getAttribute('data-action');
+          var formData = new FormData(form);
+          var data = {};
+          formData.forEach(function(value, key) { data[key] = value; });
+
+          switch(action) {
+            case 'login':
+              self.login(data.email, data.password);
+              break;
+            case 'register':
+              self.register(data.name, data.email, data.password);
+              break;
+            case 'add-item':
+              self.addItem(data);
+              form.reset();
+              self.renderItems();
+              // Close modal if open
+              var modal = form.closest('.modal-overlay');
+              if (modal) { modal.classList.remove('show'); document.body.style.overflow = ''; }
+              break;
+            case 'update-settings':
+              Object.keys(data).forEach(function(key) { self.updateSettings(key, data[key]); });
+              break;
+            case 'update-profile':
+              if (self.state.user) {
+                self.state.user.name = data.name || self.state.user.name;
+                self.saveState();
+                self.showToast('تم تحديث الملف الشخصي', 'success');
+                self.updateAuthUI(true);
+              }
+              break;
+            case 'contact':
+              self.showToast('تم إرسال رسالتك بنجاح', 'success');
+              form.reset();
+              break;
+          }
+        });
+
+        // Modal close buttons (delegated)
+        document.addEventListener('click', function(e) {
+          if (e.target.closest('.modal-close')) {
+            var modal = e.target.closest('.modal-overlay');
+            if (modal) { modal.classList.remove('show'); document.body.style.overflow = ''; }
+          }
+          // Click on overlay background
+          if (e.target.classList.contains('modal-overlay')) {
+            e.target.classList.remove('show');
+            document.body.style.overflow = '';
+          }
+        });
+
+        // Logout buttons (delegated)
+        document.addEventListener('click', function(e) {
+          if (e.target.closest('.auth-logout-btn')) {
+            e.preventDefault();
+            self.logout();
+          }
+        });
+
+        // Delete buttons (delegated)
+        document.addEventListener('click', function(e) {
+          var btn = e.target.closest('[data-delete]');
+          if (btn) {
+            if (confirm('هل أنت متأكد من الحذف؟')) {
+              self.deleteItem(parseInt(btn.getAttribute('data-delete')));
+              self.renderItems();
+            }
+          }
+        });
+
+        // Search inputs
+        document.addEventListener('input', function(e) {
+          if (e.target.hasAttribute && e.target.hasAttribute('data-search')) {
+            self.renderItems({ search: e.target.value });
+          }
+        });
+
+        // Tabs (delegated)
+        document.addEventListener('click', function(e) {
+          var btn = e.target.closest('.tab-btn');
+          if (btn) {
+            var tabGroup = btn.closest('.tabs-container');
+            if (tabGroup) {
+              tabGroup.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+              tabGroup.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+              btn.classList.add('active');
+              var tabTarget = document.getElementById(btn.getAttribute('data-tab'));
+              if (tabTarget) tabTarget.classList.add('active');
+            }
+          }
+        });
+
+        // Modal triggers (delegated)
+        document.addEventListener('click', function(e) {
+          var trigger = e.target.closest('[data-modal]');
+          if (trigger && !trigger.closest('.modal-overlay')) {
+            self.openModal(trigger.getAttribute('data-modal'));
+          }
+        });
+
+        // Mobile menu toggle
+        document.addEventListener('click', function(e) {
+          if (e.target.closest('.mobile-menu-toggle')) {
+            var navMenu = document.querySelector('.nav-menu');
+            var headerActions = document.querySelector('.header-actions');
+            if (navMenu) navMenu.classList.toggle('show');
+            if (headerActions) headerActions.classList.toggle('show');
+          }
+        });
+      },
+
+      // Render items list
+      renderItems(filter) {
+        filter = filter || {};
+        var self = this;
+        var containers = document.querySelectorAll('[data-items-list]');
+        containers.forEach(function(container) {
+          // Only render if visible
+          var page = container.closest('.spa-page');
+          if (page && page.style.display === 'none') return;
+
+          var items = self.getItems(filter);
+          if (items.length === 0) {
+            container.innerHTML = '<div class="empty-state"><p class="text-muted">لا توجد عناصر</p><button class="dga-btn dga-primary" data-modal="addItemModal">+ إضافة عنصر جديد</button></div>';
+            return;
+          }
+          container.innerHTML = items.map(function(item) {
+            return '<div class="card mb-2"><div class="card-body d-flex justify-content-between align-items-center" style="flex-wrap:wrap;gap:0.5rem;"><div style="flex:1;min-width:200px;"><h5 class="card-title mb-1">' + (item.title || item.name || 'عنصر') + '</h5><p class="card-text text-muted mb-0">' + (item.description || '') + '</p></div><div class="d-flex gap-2"><span class="badge badge-' + (item.status === 'active' ? 'primary' : 'neutral') + '">' + (item.status === 'active' ? 'نشط' : 'معلق') + '</span><button class="dga-btn dga-ghost btn-sm text-danger" data-delete="' + item.id + '">حذف</button></div></div></div>';
+          }).join('');
+        });
+      },
+
+      // Update dashboard stats
+      updateDashboardStats() {
+        var total = this.state.data.length;
+        var active = this.state.data.filter(function(i) { return i.status === 'active'; }).length;
+        var pending = total - active;
+        document.querySelectorAll('[data-stat="total"]').forEach(function(el) { el.textContent = total; });
+        document.querySelectorAll('[data-stat="active"]').forEach(function(el) { el.textContent = active; });
+        document.querySelectorAll('[data-stat="pending"]').forEach(function(el) { el.textContent = pending; });
+        document.querySelectorAll('[data-stat="completed"]').forEach(function(el) { el.textContent = active; });
+      },
+
+      // Update UI
+      updateUI() {
+        this.updateAuthUI(this.state.isAuthenticated);
+        this.renderItems();
+        this.updateDashboardStats();
+
+        // Fill profile fields if logged in
+        if (this.state.user) {
+          document.querySelectorAll('input[name="name"]').forEach(function(el) {
+            if (el.closest('[data-action="update-profile"]')) {
+              el.value = MVPApp.state.user.name || '';
+            }
+          });
+          document.querySelectorAll('input[name="email"]').forEach(function(el) {
+            if (el.closest('[data-action="update-profile"]')) {
+              el.value = MVPApp.state.user.email || '';
+            }
+          });
+        }
+      }
+    };
+
+    // Initialize when DOM is ready
+    document.addEventListener('DOMContentLoaded', function() { MVPApp.init(); });
+
+    // Expose globally
+    window.MVPApp = MVPApp;
+  `;
+}
+
+/**
+ * Generate the full SPA MVP HTML document with all screens
+ */
+export function generateFullMVPHTML(
+  mockupData: ExtendedMockupData,
+  projectTitle: string
+): string {
+  const projectContext: ProjectContext = mockupData.projectContext || {
+    title: projectTitle,
+    description: mockupData.businessContext?.valueProposition,
+    mvpFeatures: {
+      core: mockupData.businessContext?.coreFeatures?.map((f, i) => ({ id: `feature-${i}`, title: f, description: '' })) || []
+    }
+  };
+
+  const screens = mockupData.screens || [];
+  const navStructure = mockupData.navigationStructure;
+
+  // Build nav items with data-page attributes
+  const navItems = (navStructure?.mainNav || []).map(item => {
+    let pageId = 'home';
+    if (item === 'الرئيسية' || item.includes('Home')) pageId = 'home';
+    else if (item === 'لوحة التحكم' || item.includes('Dashboard')) pageId = 'dashboard';
+    else if (item.includes('قائمة') || item.includes('List')) pageId = 'list';
+    else if (item.includes('إعدادات') || item.includes('Settings')) pageId = 'settings';
+    else if (item.includes('ملف') || item.includes('Profile')) pageId = 'profile';
+    else {
+      const matchingScreen = screens.find(s =>
+        s.name?.includes(item) || s.nameEn?.toLowerCase().includes(item.toLowerCase())
+      );
+      if (matchingScreen) pageId = matchingScreen.id;
+    }
+    return `<li><a href="#" data-page="${pageId}" class="nav-link">${item}</a></li>`;
+  }).join('');
+
+  const footerItems = (navStructure?.footerNav || []).map(item =>
+    `<li class="mb-1"><a href="#">${item}</a></li>`
+  ).join('');
+
+  // Generate page sections - collect all screen IDs to avoid duplicates
+  const standardPageIds = new Set(['home', 'login', 'register', 'dashboard', 'list', 'profile', 'settings']);
+  const pageSections: string[] = [];
+
+  // Helper: determine if a screen matches a standard page
+  function getStandardPageId(screen: ScreenMockup): string | null {
+    const name = (screen.nameEn || screen.name || '').toLowerCase();
+    if (name.includes('home') || screen.name?.includes('الرئيسية')) return 'home';
+    if (name.includes('login') || screen.name?.includes('تسجيل الدخول')) return 'login';
+    if (name.includes('register') || name.includes('signup') || screen.name?.includes('إنشاء حساب') || screen.name?.includes('تسجيل جديد')) return 'register';
+    if (name.includes('dashboard') || screen.name?.includes('لوحة')) return 'dashboard';
+    if (name.includes('list') || screen.name?.includes('قائمة') || screen.name?.includes('عرض')) return 'list';
+    if (name.includes('profile') || screen.name?.includes('الملف') || screen.name?.includes('حساب')) return 'profile';
+    if (name.includes('settings') || screen.name?.includes('إعدادات')) return 'settings';
+    return null;
+  }
+
+  // Track which standard pages are covered by AI screens
+  const coveredStandardPages = new Set<string>();
+
+  // Generate sections for AI-generated screens
+  screens.forEach(screen => {
+    const stdId = getStandardPageId(screen);
+    const pageId = stdId || screen.id;
+    if (stdId) coveredStandardPages.add(stdId);
+
+    const content = generateScreenContent(screen, projectTitle, projectContext);
+    pageSections.push(`<section class="spa-page" id="page-${pageId}" style="display:none;">${content}</section>`);
+  });
+
+  // Add missing standard pages
+  const dummyScreen = (id: string, name: string, nameEn: string): ScreenMockup => ({
+    id, name, nameEn, description: '', elements: [], interactions: [], notes: ''
+  });
+
+  if (!coveredStandardPages.has('home')) {
+    const content = generateHomeContent(dummyScreen('home', 'الرئيسية', 'Home'), projectTitle, projectContext);
+    pageSections.unshift(`<section class="spa-page" id="page-home" style="display:none;">${content}</section>`);
+  }
+  if (!coveredStandardPages.has('login')) {
+    const content = generateLoginContent(dummyScreen('login', 'تسجيل الدخول', 'Login'), projectContext);
+    pageSections.push(`<section class="spa-page" id="page-login" style="display:none;">${content}</section>`);
+  }
+  if (!coveredStandardPages.has('register')) {
+    const content = generateRegisterContent(dummyScreen('register', 'إنشاء حساب', 'Register'), projectContext);
+    pageSections.push(`<section class="spa-page" id="page-register" style="display:none;">${content}</section>`);
+  }
+  if (!coveredStandardPages.has('dashboard')) {
+    const content = generateDashboardContent(dummyScreen('dashboard', 'لوحة التحكم', 'Dashboard'), projectContext);
+    pageSections.push(`<section class="spa-page" id="page-dashboard" style="display:none;">${content}</section>`);
+  }
+  if (!coveredStandardPages.has('list')) {
+    const content = generateListContent(dummyScreen('list', 'قائمة العناصر', 'Items List'), projectContext);
+    pageSections.push(`<section class="spa-page" id="page-list" style="display:none;">${content}</section>`);
+  }
+  if (!coveredStandardPages.has('profile')) {
+    const content = generateProfileContent(dummyScreen('profile', 'الملف الشخصي', 'Profile'), projectContext);
+    pageSections.push(`<section class="spa-page" id="page-profile" style="display:none;">${content}</section>`);
+  }
+  if (!coveredStandardPages.has('settings')) {
+    const content = generateSettingsContent(dummyScreen('settings', 'الإعدادات', 'Settings'), projectContext);
+    pageSections.push(`<section class="spa-page" id="page-settings" style="display:none;">${content}</section>`);
+  }
+
+  // Build full HTML
+  let html = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${projectTitle} - MVP Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    ${generateDGAStyles()}
+    .spa-page { display: none; }
+  </style>
+</head>
+<body>
+  <div class="page-wrapper">
+    <a href="#main-content" class="visually-hidden">تخطي إلى المحتوى الرئيسي</a>
+
+    <!-- Shared Header -->
+    <header class="dga-header">
+      <div class="container">
+        <a href="#" data-page="home" class="logo">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+          <span>${projectTitle}</span>
+        </a>
+
+        <button class="mobile-menu-toggle" aria-label="القائمة">☰</button>
+
+        <ul class="nav-menu">
+          ${navItems}
+        </ul>
+
+        <div class="header-actions">
+          <a href="#" data-page="login" class="dga-btn dga-secondary-outline auth-login-btn">تسجيل الدخول</a>
+          <a href="#" data-page="register" class="dga-btn dga-primary auth-login-btn">إنشاء حساب</a>
+          <div class="user-menu" style="display: none;">
+            <span class="user-name"></span>
+            <a href="#" class="dga-btn dga-ghost auth-logout-btn">خروج</a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="toast-container"></div>
+
+    <main id="main-content">
+      ${pageSections.join('\n')}
+    </main>
+
+    <footer class="dga-footer">
+      <div class="container">
+        <div class="row">
+          <div class="col-12 col-md-4 mb-3">
+            <h5>عن ${projectTitle}</h5>
+            <p class="text-muted">${projectContext?.description || 'منصة متكاملة تقدم خدمات رقمية متميزة وفق أعلى معايير الجودة والأمان.'}</p>
+          </div>
+          <div class="col-12 col-md-4 mb-3">
+            <h5>روابط سريعة</h5>
+            <ul class="list-unstyled">${footerItems}</ul>
+          </div>
+          <div class="col-12 col-md-4 mb-3">
+            <h5>تواصل معنا</h5>
+            <p class="text-muted mb-1">البريد: support@platform.sa</p>
+            <p class="text-muted">الهاتف: 920000000</p>
+          </div>
+        </div>
+        <hr style="border-color: #374151; margin: 1.5rem 0;">
+        <p class="text-center text-muted mb-0">
+          <small>جميع الحقوق محفوظة © ${new Date().getFullYear()} - ${projectTitle}</small>
+        </p>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    ${generateSPAJavaScript(screens, projectContext)}
+  </script>
+</body>
+</html>`;
+
+  // Post-process: rewrite all remaining .html href links to SPA navigation
+  html = html.replace(
+    /href="([a-zA-Z0-9\-_]+)\.html"/g,
+    (_match, page) => {
+      const pageId = page === 'index' ? 'home' : page;
+      return `href="#" data-page="${pageId}"`;
+    }
+  );
+
+  return html;
+}
+
 export default {
   generateScreenHTML,
   generateIndexHTML,
   generateAllMockupHTML,
+  generateFullMVPHTML,
 };
