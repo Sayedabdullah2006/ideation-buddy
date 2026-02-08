@@ -1,0 +1,191 @@
+// IdeaFlow AI - Database Schema
+// SQLite with Prisma ORM (for local development)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER MANAGEMENT & AUTHENTICATION
+// ============================================
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model User {
+  id            String      @id @default(cuid())
+  email         String      @unique
+  name          String?
+  password      String      // Hashed password
+  role          UserRole    @default(USER)
+  status        UserStatus  @default(ACTIVE)
+  avatar        String?     // Profile picture URL
+  lastLogin     DateTime?
+
+  // Timestamps
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // Relations
+  projects      Project[]
+  aiLogs        AIGenerationLog[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+// ============================================
+// PROJECT & DESIGN THINKING WORKFLOW
+// ============================================
+
+enum ProjectStatus {
+  DRAFT           // Just created
+  EMPATHIZE       // Step 1: Idea input
+  PERSONAS        // Step 2: Generating personas
+  DEFINE          // Step 3: Problem definition
+  IDEATE          // Step 4: Solutions generation
+  PROTOTYPE       // Step 5: Business model
+  VALIDATE        // Step 6: MVP validation
+  ARCHITECTURE    // Step 7: System architecture
+  MOCKUP          // Step 8: Screen mockups
+  COMPLETED       // MVP generated
+  ARCHIVED        // User archived it
+}
+
+model Project {
+  id              String        @id @default(cuid())
+  userId         String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Basic Info
+  title           String
+  description     String
+  status          ProjectStatus @default(DRAFT)
+
+  // Step 1: Empathize (Personas)
+  rawIdea         String?       // Initial idea input
+  personas        Json?         // Array of 3 user personas with pain points
+
+  // Step 2: Define (Problem Statement)
+  selectedPersona Json?         // The chosen persona
+  problemStatement String?      // Refined problem statement
+
+  // Step 3: Ideate (Solutions)
+  solutions       Json?         // Array of 5-10 solutions with AI scoring
+  selectedSolution Json?        // The chosen solution
+
+  // Step 4: Prototype (Business Model)
+  businessModel   Json?         // Business Model Canvas
+  mvpFeatures     Json?         // Core vs Nice-to-have features
+
+  // Step 5: Validate (MVP Spec)
+  mvpSpec         Json?         // Final comprehensive technical spec
+  mvpMarkdown     String?       // Markdown version for export
+
+  // Step 6: Architecture (System Design)
+  architectureData Json?        // System architecture and tech decisions
+
+  // Step 7: Mockup (Screen Designs)
+  mockupData      Json?         // Screen mockups and user flow
+
+  // Metadata
+  aiTokensUsed    Int           @default(0)  // Track KIMI API usage
+  aiCostEstimate  Float         @default(0.0) // Estimated cost
+
+  // Timestamps
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  completedAt     DateTime?     // When MVP was generated
+
+  // Relations
+  aiLogs          AIGenerationLog[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("projects")
+}
+
+// ============================================
+// AI GENERATION LOGS (KIMI API)
+// ============================================
+
+enum AILogStatus {
+  SUCCESS
+  FAILED
+  RATE_LIMITED
+}
+
+enum AILogStep {
+  EMPATHIZE_PERSONAS
+  DEFINE_PROBLEM
+  IDEATE_SOLUTIONS
+  PROTOTYPE_BUSINESS_MODEL
+  VALIDATE_MVP
+  MOCKUP_SCREENS
+  CUSTOM
+}
+
+model AIGenerationLog {
+  id              String      @id @default(cuid())
+  userId         String
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  projectId       String
+  project         Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // AI Request Details
+  step            AILogStep
+  prompt          String      // The prompt sent to KIMI (sanitized)
+  response        String?     // The AI response (sanitized)
+
+  // Performance & Monitoring
+  status          AILogStatus
+  tokensUsed      Int?        // Tokens consumed
+  latencyMs       Int?        // Response time in milliseconds
+  errorMessage    String?     // If failed
+
+  // Metadata
+  modelVersion    String?     // KIMI model version used
+  contextData     Json?       // Snapshot of accumulated project data
+
+  // Timestamps
+  createdAt       DateTime    @default(now())
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([step])
+  @@index([status])
+  @@index([createdAt])
+  @@map("ai_generation_logs")
+}
+
+// ============================================
+// SYSTEM CONFIGURATION (Optional)
+// ============================================
+
+model SystemConfig {
+  id              String      @id @default(cuid())
+  key             String      @unique  // e.g., "ai_rate_limit", "max_projects_per_user"
+  value           String      // JSON stringified value
+  description     String?
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@map("system_config")
+}
